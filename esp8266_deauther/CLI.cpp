@@ -283,6 +283,8 @@ void CLI::runCommand(String input) {
         prntln(CLI_HELP_SEND_DEAUTH);
         prntln(CLI_HELP_SEND_BEACON);
         prntln(CLI_HELP_SEND_PROBE);
+        prntln(CLI_HELP_TRUE_DEAUTH);
+        prntln(CLI_HELP_EVIL_TWIN);
         prntln(CLI_HELP_LED_A);
         prntln(CLI_HELP_LED_B);
         prntln(CLI_HELP_DRAW);
@@ -639,7 +641,7 @@ void CLI::runCommand(String input) {
     }
 
     // ===== ATTACK ===== //
-    // attack [-b] [-d] [-da] [p] [-t <timeout>]
+    // attack [-b] [-d] [-da] [-p] [-td] [-et <ssid>] [-t <timeout>]
     // attack status [<on/off>]
     else if (eqlsCMD(0, CLI_ATTACK)) {
         if (eqlsCMD(1, CLI_STATUS)) {
@@ -657,14 +659,27 @@ void CLI::runCommand(String input) {
         bool deauth      = false;
         bool deauthAll   = false;
         bool probe       = false;
+        bool trueDeauth  = false;
+        bool evilTwin    = false;
         bool output      = true;
         uint32_t timeout = settings::getAttackSettings().timeout * 1000;
+        String evilTwinSSID = "";
+        uint8_t evilTwinChannel = 1;
+        bool evilTwinWPA2 = true;
 
         for (int i = 1; i < list->size(); i++) {
             if (eqlsCMD(i, CLI_BEACON)) beacon = true;
             else if (eqlsCMD(i, CLI_DEAUTH)) deauth = true;
             else if (eqlsCMD(i, CLI_DEAUTHALL)) deauthAll = true;
             else if (eqlsCMD(i, CLI_PROBE)) probe = true;
+            else if (eqlsCMD(i, CLI_TRUE_DEAUTH)) trueDeauth = true;
+            else if (eqlsCMD(i, CLI_EVIL_TWIN)) {
+                evilTwin = true;
+                if (i + 1 < list->size() && !list->get(i + 1).startsWith("-")) {
+                    evilTwinSSID = list->get(i + 1);
+                    i++;
+                }
+            }
             else if (eqlsCMD(i, CLI_NOOUTPUT)) output = false;
             else if (eqlsCMD(i, CLI_TIMEOUT)) {
                 timeout = getTime(list->get(i + 1));
@@ -673,7 +688,14 @@ void CLI::runCommand(String input) {
             else parameterError(list->get(i));
         }
 
-        attack.start(beacon, deauth, deauthAll, probe, output, timeout);
+        if (evilTwin) {
+            if (evilTwinSSID.length() == 0) evilTwinSSID = "FreeWiFi";
+            uint8_t fakeMac[6];
+            getRandomMac(fakeMac);
+            attack.startEvilTwin(evilTwinSSID.c_str(), evilTwinChannel, evilTwinWPA2, fakeMac);
+        } else {
+            attack.start(beacon, deauth, deauthAll, probe, output, timeout);
+        }
     }
 
     // ===== GET/SET ===== //
