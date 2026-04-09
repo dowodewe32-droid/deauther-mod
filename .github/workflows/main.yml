@@ -1,0 +1,21 @@
+name: Build ESP8266
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build with PlatformIO
+        uses: platformio/platformio-action@v5
+        with:
+          platform: espressif8266@4.2.1
+          board: nodemcuv2
+          platform-packages: platformio/toolchain-xtensa@^2.100300.220621
+          board_build.flash_size: 4MB
+          board_build.spiffs_size: 1MB
+      - uses: actions/upload-artifact@v3
+        with:
+          name: deauther-mod
+          path: .pio/build/nodemcuv2/firmware.bin
